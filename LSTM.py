@@ -115,3 +115,107 @@ class LSTM:
             # For the next iteration or cell both ct and ht has to passed to next iter or next cell
             ct = self.C[t+1] 
             ht = self.H[t+1]
+
+    def backward(self,dvalues):
+
+        dht = dvalues[-1,:].reshape(self.no_neurons,1) # dht for last cell is only with respect to loss and not with dht+1 is absent
+        dct = np.zeros_like(self.C[-1]) 
+
+        for t in reversed(range(self.T)):
+            xt = self.x[t].reshape(1,1)
+
+            if t==0:
+                prev_H = self.H[0]
+                prev_C = self.C[0]
+            else:
+                prev_H = self.H[t-1]
+                prev_C = self.C[t-1]
+
+            # Derivative of Uf and Wf
+            self.tanh_ch[t].backward(np.multiply(dht,self.O[t]))
+            dhotanch = self.tanh_ch[t].dinputs
+            self.sigmoid_f[t].backward(np.multiply(dhotanch,prev_C))
+            dhotanchf = self.sigmoid_f[t].dinputs
+            self.dUf += np.dot(dhotanchf,xt)
+            self.dWf += np.dot(dhotanchf,prev_H.T)
+            self.dbf += dhotanchf
+
+            # Derivative of Ui and Wi
+            self.sigmoid_i[t].backward(np.multiply(dhotanch,self.C_tilda[t]))
+            dhotanchi = self.sigmoid_i[t].dinputs
+            self.dUi += np.dot(dhotanchi,xt)
+            self.dWi += np.dot(dhotanchi,prev_H.T)
+            self.dbi += dhotanchi
+
+            # Derivative of Ug and Wg
+            self.tanh_hc[t].backward(np.multiply(dhotanch,self.I[t]))
+            dhotanchtanhc = self.tanh_hc[t].dinputs
+            self.dUg += np.dot(dhotanchtanhc,xt)
+            self.dWg += np.dot(dhotanchtanhc,prev_H.T)
+            self.dbg += dhotanchtanhc
+
+            # Derivative of Uo and Wo
+            self.sigmoid_o[t].backward(np.multiply(dht,self.tanh_ch[t].outputs))
+            dhco = self.sigmoid_o[t].dinputs
+            self.dUo += np.dot(dhco,xt)
+            self.dWo += np.dot(dhco,prev_H.T)
+            self.dbo += dhco
+
+            # derivative of ht-1
+            dht = np.dot(self.Wf.T,dhotanchf)+np.dot(self.Wi.T,dhotanchi) \
+                +np.dot(self.Wg.T,dhotanchtanhc)+np.dot(self.Wo.T,dhco) \
+                +(dvalues[t-1,:].reshape(self.no_neurons,1) \
+                if t >0 else np.zeros_like(dvalues[-1,:].reshape(self.no_neurons,1)))
+
+
+
+
+
+#             dct = 
+
+
+# def backward(self, dvalues):
+#     dht = dvalues[-1, :].reshape(self.no_neurons, 1)
+#     dct = np.zeros_like(self.C[-1])  # initialize dct as zero for the last cell state
+
+#     for t in reversed(range(self.T)):
+#         xt = self.x[t].reshape(1, 1)
+
+#         # Derivative of output gate
+#         self.tanh_ch[t].backward(np.multiply(dht, self.O[t]))
+#         dct += self.tanh_ch[t].dinputs  # add to dct for dependencies across time
+#         self.sigmoid_o[t].backward(np.multiply(dht, self.tanh_ch[t].outputs))
+#         dUo_term = self.sigmoid_o[t].dinputs
+#         self.dUo += np.dot(dUo_term, xt.T)
+#         self.dWo += np.dot(dUo_term, self.H[t].T)
+
+#         # Derivative of cell state and forget gate
+#         dct_tilda = dct * self.F[t]
+#         self.sigmoid_f[t].backward(np.multiply(dct, self.C[t]))
+#         dUf_term = self.sigmoid_f[t].dinputs
+#         self.dUf += np.dot(dUf_term, xt.T)
+#         self.dWf += np.dot(dUf_term, self.H[t].T)
+
+#         # Derivative of input gate
+#         self.sigmoid_i[t].backward(np.multiply(dct, self.C_tilda[t]))
+#         dUi_term = self.sigmoid_i[t].dinputs
+#         self.dUi += np.dot(dUi_term, xt.T)
+#         self.dWi += np.dot(dUi_term, self.H[t].T)
+
+#         # Derivative of candidate cell state (C_tilda)
+#         self.tanh_hc[t].backward(np.multiply(dct, self.I[t]))
+#         dUg_term = self.tanh_hc[t].dinputs
+#         self.dUg += np.dot(dUg_term, xt.T)
+#         self.dWg += np.dot(dUg_term, self.H[t].T)
+
+#         # Calculate gradient for ht for the next iteration
+#         dht = np.dot(self.Wf.T, dUf_term) + np.dot(self.Wi.T, dUi_term) + np.dot(self.Wg.T, dUg_term) + np.dot(self.Wo.T, dUo_term)
+        
+#         # Update dct for propagation across time steps
+#         dct = dct * self.F[t] + np.multiply(self.I[t], self.tanh_hc[t].dinputs)
+
+
+
+
+
+            
