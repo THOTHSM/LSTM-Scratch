@@ -11,7 +11,8 @@ class Tanh:
 
 class Sigmoid:
     def forward(self,inputs):
-        sigmoid = np.clip(1/(1+np.exp(-inputs)),1e-7,1-1e-7)
+        inputs = np.clip(inputs, -500, 500)
+        sigmoid = 1/(1+np.exp(-inputs))
         self.outputs = sigmoid
 
     def backward(self,dvalues):
@@ -166,56 +167,123 @@ class LSTM:
                 +np.dot(self.Wg.T,dhotanchtanhc)+np.dot(self.Wo.T,dhco) \
                 +(dvalues[t-1,:].reshape(self.no_neurons,1) \
                 if t >0 else np.zeros_like(dvalues[-1,:].reshape(self.no_neurons,1)))
-
-
-
-
-
-#             dct = 
-
-
-# def backward(self, dvalues):
-#     dht = dvalues[-1, :].reshape(self.no_neurons, 1)
-#     dct = np.zeros_like(self.C[-1])  # initialize dct as zero for the last cell state
-
-#     for t in reversed(range(self.T)):
-#         xt = self.x[t].reshape(1, 1)
-
-#         # Derivative of output gate
-#         self.tanh_ch[t].backward(np.multiply(dht, self.O[t]))
-#         dct += self.tanh_ch[t].dinputs  # add to dct for dependencies across time
-#         self.sigmoid_o[t].backward(np.multiply(dht, self.tanh_ch[t].outputs))
-#         dUo_term = self.sigmoid_o[t].dinputs
-#         self.dUo += np.dot(dUo_term, xt.T)
-#         self.dWo += np.dot(dUo_term, self.H[t].T)
-
-#         # Derivative of cell state and forget gate
-#         dct_tilda = dct * self.F[t]
-#         self.sigmoid_f[t].backward(np.multiply(dct, self.C[t]))
-#         dUf_term = self.sigmoid_f[t].dinputs
-#         self.dUf += np.dot(dUf_term, xt.T)
-#         self.dWf += np.dot(dUf_term, self.H[t].T)
-
-#         # Derivative of input gate
-#         self.sigmoid_i[t].backward(np.multiply(dct, self.C_tilda[t]))
-#         dUi_term = self.sigmoid_i[t].dinputs
-#         self.dUi += np.dot(dUi_term, xt.T)
-#         self.dWi += np.dot(dUi_term, self.H[t].T)
-
-#         # Derivative of candidate cell state (C_tilda)
-#         self.tanh_hc[t].backward(np.multiply(dct, self.I[t]))
-#         dUg_term = self.tanh_hc[t].dinputs
-#         self.dUg += np.dot(dUg_term, xt.T)
-#         self.dWg += np.dot(dUg_term, self.H[t].T)
-
-#         # Calculate gradient for ht for the next iteration
-#         dht = np.dot(self.Wf.T, dUf_term) + np.dot(self.Wi.T, dUi_term) + np.dot(self.Wg.T, dUg_term) + np.dot(self.Wo.T, dUo_term)
+   
+class Optimizer_SGD_LSTM:
+    def __init__(self, learning_rate = 1e-5, decay = 0, momentum = 0):
+        self.learning_rate         = learning_rate
+        self.current_learning_rate = learning_rate
+        self.decay                 = decay
+        self.iterations            = 0
+        self.momentum              = momentum
         
-#         # Update dct for propagation across time steps
-#         dct = dct * self.F[t] + np.multiply(self.I[t], self.tanh_hc[t].dinputs)
+    def pre_update_params(self):
+        if self.decay:
+            self.current_learning_rate = self.learning_rate * \
+                (1/ (1 + self.decay*self.iterations))
+        
+    def update_params(self, layer):
+        #if momentum
+        if self.momentum:
+            if not hasattr(layer, 'Uf_momentums'):
+                layer.Uf_momentums = np.zeros_like(layer.Uf)
+                layer.Ui_momentums = np.zeros_like(layer.Ui)
+                layer.Uo_momentums = np.zeros_like(layer.Uo)
+                layer.Ug_momentums = np.zeros_like(layer.Ug)
+                
+                layer.Wf_momentums = np.zeros_like(layer.Wf)
+                layer.Wi_momentums = np.zeros_like(layer.Wi)
+                layer.Wo_momentums = np.zeros_like(layer.Wo)
+                layer.Wg_momentums = np.zeros_like(layer.Wg)
+                
+                layer.bf_momentums = np.zeros_like(layer.bf)
+                layer.bi_momentums = np.zeros_like(layer.bi)
+                layer.bo_momentums = np.zeros_like(layer.bo)
+                layer.bg_momentums = np.zeros_like(layer.bg)
+                
 
-
-
+            Uf_updates = self.momentum * layer.Uf_momentums - \
+                self.current_learning_rate * layer.dUf
+            layer.Uf_momentums = Uf_updates
+            
+            Ui_updates = self.momentum * layer.Ui_momentums - \
+                self.current_learning_rate * layer.dUi
+            layer.Ui_momentums = Ui_updates
+            
+            Uo_updates = self.momentum * layer.Uo_momentums - \
+                self.current_learning_rate * layer.dUo
+            layer.Uo_momentums = Uo_updates
+            
+            Ug_updates = self.momentum * layer.Ug_momentums - \
+                self.current_learning_rate * layer.dUg
+            layer.Ug_momentums = Ug_updates
+            
+            Wf_updates = self.momentum * layer.Wf_momentums - \
+                self.current_learning_rate * layer.dWf
+            layer.Wf_momentums = Wf_updates
+            
+            Wi_updates = self.momentum * layer.Wi_momentums - \
+                self.current_learning_rate * layer.dWi
+            layer.Wi_momentums = Wi_updates
+            
+            Wo_updates = self.momentum * layer.Wo_momentums - \
+                self.current_learning_rate * layer.dWo
+            layer.Wo_momentums = Wo_updates
+            
+            Wg_updates = self.momentum * layer.Wg_momentums - \
+                self.current_learning_rate * layer.dWg
+            layer.Wg_momentums = Wg_updates
+            
+            bf_updates = self.momentum * layer.bf_momentums - \
+                self.current_learning_rate * layer.dbf
+            layer.bf_momentums = bf_updates
+            
+            bi_updates = self.momentum * layer.bi_momentums - \
+                self.current_learning_rate * layer.dbi
+            layer.bi_momentums = bi_updates
+            
+            bo_updates = self.momentum * layer.bo_momentums - \
+                self.current_learning_rate * layer.dbo
+            layer.bo_momentums = bo_updates
+            
+            bg_updates = self.momentum * layer.bg_momentums - \
+                self.current_learning_rate * layer.dbg
+            layer.bg_momentums = bg_updates
+            
+        else:
+            
+            Uf_updates = -self.current_learning_rate * layer.dUf
+            Ui_updates = -self.current_learning_rate * layer.dUi
+            Uo_updates = -self.current_learning_rate * layer.dUo
+            Ug_updates = -self.current_learning_rate * layer.dUg
+            
+            Wf_updates = -self.current_learning_rate * layer.dWf
+            Wi_updates = -self.current_learning_rate * layer.dWi
+            Wo_updates = -self.current_learning_rate * layer.dWo
+            Wg_updates = -self.current_learning_rate * layer.dWg
+            
+            bf_updates = -self.current_learning_rate * layer.dbf
+            bi_updates = -self.current_learning_rate * layer.dbi
+            bo_updates = -self.current_learning_rate * layer.dbo
+            bg_updates = -self.current_learning_rate * layer.dbg
+            
+        
+        layer.Uf += Uf_updates 
+        layer.Ui += Ui_updates 
+        layer.Uo += Uo_updates 
+        layer.Ug += Ug_updates 
+        
+        layer.Wf += Wf_updates 
+        layer.Wi += Wi_updates 
+        layer.Wo += Wo_updates
+        layer.Wg += Wg_updates
+        
+        layer.bf += bf_updates 
+        layer.bi += bi_updates 
+        layer.bo += bo_updates
+        layer.bg += bg_updates
+        
+    def post_update_params(self):
+        self.iterations += 1
 
 
             
